@@ -119,7 +119,7 @@ main(){
     echo "脚本将根据hosts文件中指定的主机，初始化单个节点"
     ssh_trust
     init_node
-    echo "--初始化完成，服务器将重启-- "
+    echo "--初始化完成，服务器将重启--"
     reboot
   ;;
   *)
