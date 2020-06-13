@@ -3,36 +3,35 @@
 # Created by henry on 2020/6/5
 # email 17607168727@163.com
 
-
-clear_passwd(){
-    suffix=`date  +"_%Y%m%d%H%M%S.bak"`
-    # 清空hosts文件中的密码信息
-    cp node/hosts ./hosts$suffix
-    echo "hosts$suffix" >./.install_temp
-    awk '{print $1 " " $2 }' node/hosts > tmp
-    cat tmp >node/hosts
-    rm -rf tmp
+clear_passwd() {
+  suffix=$(date +"_%Y%m%d%H%M%S.bak")
+  # 清空hosts文件中的密码信息
+  cp node/hosts ./hosts$suffix
+  echo "hosts$suffix" >./.install_temp
+  awk '{print $1 " " $2 }' node/hosts >tmp
+  cat tmp >node/hosts
+  rm -rf tmp
 }
 
-ssh_trust(){
-    if [ -f "./.install_temp" ];then
-      cat `cat .install_temp` >node/hosts
-    fi
-    yum install -y expect
-    # 判断id_rsa密钥文件是否存在
-    if [ ! -f ~/.ssh/id_rsa ];then
-        ssh-keygen -t rsa -P "" -f ~/.ssh/id_rsa
-    else
-        echo "id_rsa has created ..."
-    fi
-    #分发到各个节点,这里分发到host文件中的主机中.
-    while read line;do
-        if [ -n "$line" ];then
-            hostname=`echo $line | cut -d " " -f 2`
-            ip=`echo $line | cut -d " " -f 1`
-            passwd=`echo $line | cut -d " " -f 3`
+ssh_trust() {
+  if [ -f "./.install_temp" ]; then
+    cat $(cat .install_temp) >node/hosts
+  fi
+  yum install -y expect
+  # 判断id_rsa密钥文件是否存在
+  if [ ! -f ~/.ssh/id_rsa ]; then
+    ssh-keygen -t rsa -P "" -f ~/.ssh/id_rsa
+  else
+    echo "id_rsa has created ..."
+  fi
+  #分发到各个节点,这里分发到host文件中的主机中.
+  while read line; do
+    if [ -n "$line" ]; then
+      hostname=$(echo $line | cut -d " " -f 2)
+      ip=$(echo $line | cut -d " " -f 1)
+      passwd=$(echo $line | cut -d " " -f 3)
 
-            expect << EOF
+      expect <<EOF
                 set timeout 10
                 spawn ssh-copy-id root@$ip
                 expect {
@@ -41,51 +40,49 @@ ssh_trust(){
                 }
                 expect "password" { send "$passwd\n" }
 EOF
-        fi
-    done <  node/hosts
-    clear_passwd
+    fi
+  done <node/hosts
+  clear_passwd
 
 }
 
-
-
-init_cluster(){
+init_cluster() {
   # shellcheck disable=SC2095
   while read line; do
-    if [ -n "$line" ];then
-      hostname=`echo $line | cut -d " " -f 2`
-      ip=`echo $line | cut -d " " -f 1`
+    if [ -n "$line" ]; then
+      hostname=$(echo $line | cut -d " " -f 2)
+      ip=$(echo $line | cut -d " " -f 1)
       echo $hostname $ip
-      scp -r node/  root@$ip:/tmp
-      ssh root@$ip << remotessh
+      scp -r node/ root@$ip:/tmp
+      ssh root@$ip <<remotessh
 hostnamectl set-hostname $hostname
 cd  /tmp/node/ && sh ./node_init.sh
 exit
 remotessh
     fi
-  done  < node/hosts
+  done <node/hosts
 }
 
-init_node(){
+init_node() {
   # shellcheck disable=SC2095
   # 跳过salt主机
   while read line; do
-    if [ -n "$line" ];then
-      hostname=`echo $line | cut -d " " -f 2`
-      ip=`echo $line | cut -d " " -f 1`
-      if [[  $hostname != "salt"  ]];then
+    if [ -n "$line" ]; then
+      hostname=$(echo $line | cut -d " " -f 2)
+      ip=$(echo $line | cut -d " " -f 1)
+      if [[ $hostname != "salt" ]]; then
         scp -r node/ root@$ip:/tmp
-        ssh root@$ip << remotessh
+        ssh root@$ip <<remotessh
 hostnamectl set-hostname $hostname
 cd  /tmp/node/ && sh ./node_init.sh
 exit
 remotessh
       fi
     fi
-  done  < node/hosts
+  done <node/hosts
 }
 
-help(){
+help() {
   echo -e "
 ### 注意事项:
   运行脚本前请检查hosts文件中的ip、主机名和密码是否对应
@@ -100,12 +97,10 @@ help(){
   "
 }
 
-
-
-main(){
+main() {
   help
-  select var in "init cluster"  "init node" "help"; do
-    break;
+  select var in "init cluster" "init node" "help"; do
+    break
   done
   case $var in
   "init cluster")
@@ -114,17 +109,17 @@ main(){
     init_cluster
     echo "--初始化完成，服务器将重启-- "
     reboot
-  ;;
+    ;;
   "init node")
     echo "脚本将根据hosts文件中指定的主机，初始化单个节点"
     ssh_trust
     init_node
     echo "--初始化完成，服务器将重启--"
     reboot
-  ;;
+    ;;
   *)
-  help
-  ;;
+    help
+    ;;
   esac
 
 }
